@@ -668,6 +668,24 @@ uint64_t CACHE::invalidate_entry(uint64_t inval_addr)
   return std::distance(begin, inv_way);
 }
 
+// DIRTY HACK: Lets the prefetcher query the tag array in 0 cycles
+void CACHE::lookup_addr(uint64_t pf_addr, bool* hit, bool* prefetch)
+{
+        auto [set_begin, set_end] = get_set_span(pf_addr);
+        auto way = std::find_if(set_begin, set_end,
+                                [match = pf_addr >> OFFSET_BITS, shamt = OFFSET_BITS](const auto& entry) { return (entry.address >> shamt) == match; });
+        if(way != set_end)
+        {
+                if(*hit) *hit = true;
+                if(prefetch) *prefetch = way->prefetch;
+        }
+        else
+        {
+                if(hit) *hit = false;
+                if(prefetch) *prefetch = false;
+        }
+}
+
 int CACHE::prefetch_line(uint64_t pf_addr, bool fill_this_level, uint32_t prefetch_metadata)
 {
   ++sim_stats.pf_requested;

@@ -294,6 +294,8 @@ public:
   [[deprecated("Use CACHE::prefetch_line(pf_addr, fill_this_level, prefetch_metadata) instead.")]] int
   prefetch_line(uint64_t ip, uint64_t base_addr, uint64_t pf_addr, bool fill_this_level, uint32_t prefetch_metadata);
 
+  void lookup_addr(uint64_t pf_addr, bool* hit, bool* prefetch);
+
   void print_deadlock() override;
 
 #include "cache_module_decl.inc"
