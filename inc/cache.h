@@ -39,6 +39,9 @@
 #include "operable.h"
 #include <type_traits>
 
+#define UP_RPL_EN       0x01
+#define PF_EN           0x10
+#define PF_UP_RPL	0x1
 struct cache_stats {
   std::string name;
   // prefetch stats

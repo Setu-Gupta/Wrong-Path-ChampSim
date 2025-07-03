@@ -349,8 +349,13 @@ bool CACHE::try_hit(const tag_lookup_type& handle_pkt, bool no_stat_upd)
 
       // update replacement policy
       const auto way_idx = static_cast<std::size_t>(std::distance(set_begin, way)); // cast protected by earlier assertion
-      impl_update_replacement_state(handle_pkt.cpu, get_set_index(handle_pkt.address), way_idx, way->address, handle_pkt.ip, 0,
-                                    champsim::to_underlying(handle_pkt.type), true);
+
+      // Only update the replacement state for demands and for prefetches which have the replacement bit set
+      if ((handle_pkt.type != access_type::PREFETCH) || (handle_pkt.pf_metadata & UP_RPL_EN))
+      {
+              impl_update_replacement_state(handle_pkt.cpu, get_set_index(handle_pkt.address), way_idx, way->address, handle_pkt.ip, 0,
+                                            champsim::to_underlying(handle_pkt.type), true);
+      }
 
       impl_prefetcher_prefetch_hit(block[get_set_index(handle_pkt.address) * NUM_WAY + way_idx].address << LOG2_BLOCK_SIZE, handle_pkt.ip,
                                    handle_pkt.pf_metadata);
@@ -379,6 +384,10 @@ bool CACHE::handle_miss(const tag_lookup_type& handle_pkt)
                handle_pkt.instr_id, handle_pkt.address, handle_pkt.v_address,
                access_type_names.at(champsim::to_underlying(handle_pkt.type)), handle_pkt.prefetch_from_this, current_cycle);
   }
+
+  // If the packet type is prefetch and the fetch bit is turned off, ignore the request
+  if (handle_pkt.type == access_type::PREFETCH && (handle_pkt.pf_metadata == UP_RPL_EN))
+          return true;
 
   mshr_type to_allocate{handle_pkt, current_cycle};
   to_allocate.wrong_path = handle_pkt.wrong_path;
