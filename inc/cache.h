@@ -51,6 +51,15 @@ struct cache_stats {
   uint64_t pf_useless = 0;
   uint64_t pf_fill = 0;
 
+  // RPL PF stats
+  uint64_t pf_issued_rpl = 0;
+  uint64_t pf_issued_pf = 0;
+  uint64_t pf_redundant = 0;            // Prefetch Hit with RPL disabled
+  uint64_t pf_promote = 0;              // Prefetch Hit with RPL enabled
+  uint64_t dmd_promote = 0;
+  uint64_t pf_issued_downstream = 0;    // Prefetch Miss with RPL disabled
+  uint64_t pf_dropped = 0;              // Prefetch Miss with RPL enabled
+
   // wrong_path stats
   uint64_t wp_load = 0;
   uint64_t wp_store = 0;

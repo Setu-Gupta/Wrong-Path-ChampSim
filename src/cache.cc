@@ -351,11 +351,19 @@ bool CACHE::try_hit(const tag_lookup_type& handle_pkt, bool no_stat_upd)
       const auto way_idx = static_cast<std::size_t>(std::distance(set_begin, way)); // cast protected by earlier assertion
 
       // Only update the replacement state for demands and for prefetches which have the replacement bit set
-      if ((handle_pkt.type != access_type::PREFETCH) || (handle_pkt.pf_metadata & UP_RPL_EN))
+      if ((handle_pkt.type != access_type::PREFETCH) || (handle_pkt.pf_metadata == UP_RPL_EN))
       {
               impl_update_replacement_state(handle_pkt.cpu, get_set_index(handle_pkt.address), way_idx, way->address, handle_pkt.ip, 0,
                                             champsim::to_underlying(handle_pkt.type), true);
+
+              if(handle_pkt.type != access_type::PREFETCH)      // Demand request
+                      ++sim_stats.dmd_promote;
+              if(handle_pkt.type == access_type::PREFETCH && (handle_pkt.pf_metadata == UP_RPL_EN))      // Prefetch request
+                      ++sim_stats.pf_promote;
       }
+
+      if(handle_pkt.type == access_type::PREFETCH && handle_pkt.pf_metadata != UP_RPL_EN)
+              ++sim_stats.pf_redundant;
 
       impl_prefetcher_prefetch_hit(block[get_set_index(handle_pkt.address) * NUM_WAY + way_idx].address << LOG2_BLOCK_SIZE, handle_pkt.ip,
                                    handle_pkt.pf_metadata);
@@ -387,7 +395,10 @@ bool CACHE::handle_miss(const tag_lookup_type& handle_pkt)
 
   // If the packet type is prefetch and the fetch bit is turned off, ignore the request
   if (handle_pkt.type == access_type::PREFETCH && (handle_pkt.pf_metadata == UP_RPL_EN))
+  {
+          ++sim_stats.pf_dropped;
           return true;
+  }
 
   mshr_type to_allocate{handle_pkt, current_cycle};
   to_allocate.wrong_path = handle_pkt.wrong_path;
@@ -441,7 +452,10 @@ bool CACHE::handle_miss(const tag_lookup_type& handle_pkt)
     if (prefetch_as_load || handle_pkt.type != access_type::PREFETCH)
       success = lower_level->add_rq(fwd_pkt);
     else
+    {
+      ++sim_stats.pf_issued_downstream;
       success = lower_level->add_pq(fwd_pkt);
+    }
 
     if (!success) {
       if constexpr (champsim::debug_print) {
@@ -712,6 +726,11 @@ int CACHE::prefetch_line(uint64_t pf_addr, bool fill_this_level, uint32_t prefet
 
   internal_PQ.emplace_back(pf_packet, true, !fill_this_level);
   ++sim_stats.pf_issued;
+
+  if(prefetch_metadata == UP_RPL_EN)
+    ++sim_stats.pf_issued_rpl;
+  else
+    ++sim_stats.pf_issued_pf;
 
   return true;
 }
@@ -1019,6 +1038,14 @@ void CACHE::end_phase(unsigned finished_cpu)
   roi_stats.pf_useful = sim_stats.pf_useful;
   roi_stats.pf_useless = sim_stats.pf_useless;
   roi_stats.pf_fill = sim_stats.pf_fill;
+
+  roi_stats.pf_issued_pf = sim_stats.pf_issued_pf;
+  roi_stats.pf_issued_rpl = sim_stats.pf_issued_rpl;
+  roi_stats.pf_redundant = sim_stats.pf_redundant;
+  roi_stats.pf_promote = sim_stats.pf_promote;
+  roi_stats.dmd_promote = sim_stats.dmd_promote;
+  roi_stats.pf_issued_downstream = sim_stats.pf_issued_downstream;
+  roi_stats.pf_dropped = sim_stats.pf_dropped;
 
   roi_stats.wp_miss = sim_stats.wp_miss;
   roi_stats.cp_miss = sim_stats.cp_miss;
