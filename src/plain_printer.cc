@@ -183,11 +183,11 @@ void champsim::plain_printer::print(CACHE::stats_type stats)
     fmt::print(stream, "{} AVERAGE DATA MISS LATENCY: {:.4g} cycles\n", stats.name, stats.avg_data_miss_latency);
     fmt::print(stream, "{} AVERAGE WP DATA MISS LATENCY: {:.4g} cycles\n", stats.name, stats.avg_wp_data_miss_latency);
     fmt::print(stream, "{} AVERAGE CP DATA MISS LATENCY: {:.4g} cycles\n", stats.name, stats.avg_cp_data_miss_latency);
-    fmt::print(stream, "{} [Replacement Prefetch]", stats.name);
-    fmt::print(stream, "        Demand Promote: {}", stats.dmd_promote);
-    fmt::print(stream, "        Prefetch Issued        Without RPL: {} With RPL: {}", stats.pf_issued_pf, stats.pf_issued_rpl);
-    fmt::print(stream, "        Prefetch Hit           Without RPL, Redundant Prefetch: {} With RPL, Prefetch Promote: {}", stats.pf_redundant, stats.pf_promote);
-    fmt::print(stream, "        Prefetch Miss          Without RPL, Prefetch Issued Downstream {} With RPL, Prefetch Dropped {}\n\n", stats.pf_issued_downstream, stats.pf_dropped);
+    fmt::print(stream, "{} [Replacement Prefetch]\n", stats.name);
+    fmt::print(stream, "        Demand Promote: {:15}\n", stats.dmd_promote);
+    fmt::print(stream, "        Prefetch Issued        Without RPL:                             {:15} With RPL:                   {:15}\n", stats.pf_issued_pf, stats.pf_issued_rpl);
+    fmt::print(stream, "        Prefetch Hit           Without RPL, Redundant Prefetch:         {:15} With RPL, Prefetch Promote: {:15}\n", stats.pf_redundant, stats.pf_promote);
+    fmt::print(stream, "        Prefetch Miss          Without RPL, Prefetch Issued Downstream: {:15} With RPL, Prefetch Dropped: {:15}\n\n", stats.pf_issued_downstream, stats.pf_dropped);
   }
 }
 

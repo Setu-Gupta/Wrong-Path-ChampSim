@@ -351,14 +351,14 @@ bool CACHE::try_hit(const tag_lookup_type& handle_pkt, bool no_stat_upd)
       const auto way_idx = static_cast<std::size_t>(std::distance(set_begin, way)); // cast protected by earlier assertion
 
       // Only update the replacement state for demands and for prefetches which have the replacement bit set
-      if ((handle_pkt.type != access_type::PREFETCH) || (handle_pkt.pf_metadata == UP_RPL_EN))
+      if ((handle_pkt.type != access_type::PREFETCH) || (handle_pkt.pf_metadata & UP_RPL_EN))
       {
               impl_update_replacement_state(handle_pkt.cpu, get_set_index(handle_pkt.address), way_idx, way->address, handle_pkt.ip, 0,
                                             champsim::to_underlying(handle_pkt.type), true);
 
               if(handle_pkt.type != access_type::PREFETCH)      // Demand request
                       ++sim_stats.dmd_promote;
-              if(handle_pkt.type == access_type::PREFETCH && (handle_pkt.pf_metadata == UP_RPL_EN))      // Prefetch request
+              if(handle_pkt.type == access_type::PREFETCH && (handle_pkt.pf_metadata & UP_RPL_EN))      // Prefetch request
                       ++sim_stats.pf_promote;
       }
 
@@ -394,7 +394,7 @@ bool CACHE::handle_miss(const tag_lookup_type& handle_pkt)
   }
 
   // If the packet type is prefetch and the fetch bit is turned off, ignore the request
-  if (handle_pkt.type == access_type::PREFETCH && (handle_pkt.pf_metadata == UP_RPL_EN))
+  if (handle_pkt.type == access_type::PREFETCH && !(handle_pkt.pf_metadata & PF_EN) && handle_pkt.pf_metadata != 0x0)  // By default the metadata has the value 0x0. The third condition guards against that
   {
           ++sim_stats.pf_dropped;
           return true;
@@ -727,7 +727,7 @@ int CACHE::prefetch_line(uint64_t pf_addr, bool fill_this_level, uint32_t prefet
   internal_PQ.emplace_back(pf_packet, true, !fill_this_level);
   ++sim_stats.pf_issued;
 
-  if(prefetch_metadata == UP_RPL_EN)
+  if(prefetch_metadata & UP_RPL_EN)
     ++sim_stats.pf_issued_rpl;
   else
     ++sim_stats.pf_issued_pf;
