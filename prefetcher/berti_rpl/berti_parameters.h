@@ -86,8 +86,8 @@ namespace berti_space
   # define CONFIDENCE_INC               (1) // 6 bits
   # define CONFIDENCE_INIT              (1) // 6 bits
    
-  # define CONFIDENCE_RPL_FLOOR         (1) // 6 bits
-  # define CONFIDENCE_RPL_CEIL		(4)
+  # define CONFIDENCE_RPL_FLOOR         (8) // 6 bits
+  # define CONFIDENCE_RPL_CEIL		(15)
   # define CONFIDENCE_RPL_EXACT		(8) 
   # define CONFIDENCE_RPL_MAX		(16)
   # define CONFIDENCE_L1                (10) // 6 bits
