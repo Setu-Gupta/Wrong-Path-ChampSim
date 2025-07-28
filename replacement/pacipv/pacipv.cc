@@ -32,7 +32,7 @@ namespace PACIPV_Policy
                         PACIPV(uint32_t ways, decltype(demand_vector)& dv, decltype(prefetch_vector)& pv): num_ways(ways), demand_vector(dv), prefetch_vector(pv)
                         {
                                 // Initialize the RRPVs of all the ways
-                                uint32_t max_valid_rrpv = demand_vector.size() - 1;
+                                uint32_t max_valid_rrpv = demand_vector.size() - 2;
                                 rrpvs.resize(num_ways, max_valid_rrpv);
                         }
 
@@ -52,7 +52,7 @@ namespace PACIPV_Policy
 
                                 // Update RRPV
                                 uint32_t old_rrpv = rrpvs.at(way);
-                                uint32_t new_rrpv = demand_vector.at(old_rrpv - 1);
+                                uint32_t new_rrpv = demand_vector.at(old_rrpv);
                                 rrpvs.at(way)     = new_rrpv;
                         }
 
@@ -72,14 +72,14 @@ namespace PACIPV_Policy
 
                                 // Update RRPV
                                 uint32_t old_rrpv = rrpvs.at(way);
-                                uint32_t new_rrpv = prefetch_vector.at(old_rrpv - 1);
+                                uint32_t new_rrpv = prefetch_vector.at(old_rrpv);
                                 rrpvs.at(way)     = new_rrpv;
                         }
 
                         uint32_t find_victim()
                         {
                                 // Find the maximum valid RRPV
-                                uint32_t max_valid_rrpv = demand_vector.size() - 1;
+                                uint32_t max_valid_rrpv = demand_vector.size() - 2;
 
                                 // Increment all RRPVs for all ways until at least one way is assigned the maximum valid RRPV
                                 uint32_t max_rrpv = *std::max_element(rrpvs.cbegin(), rrpvs.cend());
@@ -207,7 +207,7 @@ void CACHE::initialize_replacement()
         const uint32_t max_demand_rrpv   = *std::max_element(demand_vector.cbegin(), demand_vector.cend());
         const uint32_t min_prefetch_rrpv = *std::min_element(prefetch_vector.cbegin(), prefetch_vector.cend());
         const uint32_t max_prefetch_rrpv = *std::max_element(prefetch_vector.cbegin(), prefetch_vector.cend());
-        if(max_demand_rrpv >= demand_vector.size() || min_demand_rrpv < 1 || max_prefetch_rrpv >= prefetch_vector.size() || min_prefetch_rrpv < 1)
+        if(max_demand_rrpv > demand_vector.size() - 2  || min_demand_rrpv < 0 || max_prefetch_rrpv > prefetch_vector.size() - 2 || min_prefetch_rrpv < 0)
         {
                 std::cerr << "[ERROR (" << this->NAME << ")] Illegal IPV specified. Illegal RRPV value(s) found in IPVs." << std::endl;
                 std::exit(-1);
