@@ -549,6 +549,10 @@ long CACHE::operate()
   auto can_translate = [avail = (std::size(translation_stash) < static_cast<std::size_t>(MSHR_SIZE))](const auto& entry) {
     return avail || entry.is_translated;
   };
+
+  auto pq_bandwidth_consumed = champsim::transform_while_n(internal_PQ, std::back_inserter(inflight_tag_check), tag_bw * 1024, can_translate, initiate_tag_check<false>());
+  progress += pq_bandwidth_consumed;
+
   auto stash_bandwidth_consumed = champsim::transform_while_n(
       translation_stash, std::back_inserter(inflight_tag_check), tag_bw, [](const auto& entry) { return entry.is_translated; }, initiate_tag_check<false>());
   tag_bw -= stash_bandwidth_consumed;
@@ -562,9 +566,6 @@ long CACHE::operate()
       progress += bandwidth_consumed;
     }
   }
-  auto pq_bandwidth_consumed = champsim::transform_while_n(internal_PQ, std::back_inserter(inflight_tag_check), tag_bw, can_translate, initiate_tag_check<false>());
-  tag_bw -= pq_bandwidth_consumed;
-  progress += pq_bandwidth_consumed;
 
   // Issue translations
   issue_translation();
