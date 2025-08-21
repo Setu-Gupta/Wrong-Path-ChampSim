@@ -351,8 +351,8 @@ bool CACHE::try_hit(const tag_lookup_type& handle_pkt, bool no_stat_upd)
       // update replacement policy
       const auto way_idx = static_cast<std::size_t>(std::distance(set_begin, way)); // cast protected by earlier assertion
 
-      // Only update the replacement state for demands and for prefetches which have the replacement bit set
-      if ((handle_pkt.type != access_type::PREFETCH) || (handle_pkt.pf_metadata & UP_RPL_EN))
+      // Only update the replacement state for demands and for prefetches which have the replacement bit set. The default metadata for prefetches is 0x0
+      if ((handle_pkt.type != access_type::PREFETCH) || (handle_pkt.pf_metadata & UP_RPL_EN) || (handle_pkt.pf_metadata == 0x0))
       {
               if(NAME.find("L1I") == std::string::npos)
               {
