@@ -32,12 +32,16 @@
 #include <string>
 #include <vector>
 
+#include "belady.h"
 #include "champsim.h"
 #include "champsim_constants.h"
 #include "channel.h"
 #include "module_impl.h"
 #include "operable.h"
 #include <type_traits>
+
+static constexpr bool enable_belady = true;             // Set this to true if any of the cache levels uses Bélady's replacement policy
+static constexpr const char* belady_cache = "L1I";      // Whichever cache's name includes this string will use Bélady's replacement policy
 
 struct cache_stats {
   std::string name;
@@ -110,6 +114,9 @@ public:
   enum [[deprecated(
       "Prefetchers may not specify arbitrary fill levels. Use CACHE::prefetch_line(pf_addr, fill_this_level, prefetch_metadata) instead.")]] FILL_LEVEL{
       FILL_L1 = 1, FILL_L2 = 2, FILL_LLC = 4, FILL_DRC = 8, FILL_DRAM = 16};
+
+  /* For Bélady */
+  Belady::BeladyReplacementPolicy belady;
 
   /* For cache accuracy measurement */
   uint64_t cycle, next_measure_cycle;
@@ -374,7 +381,13 @@ public:
   void impl_prefetcher_broadcast_ipc(uint64_t ipc) { module_pimpl->impl_prefetcher_broadcast_ipc(ipc); }
   void impl_prefetcher_broadcast_acc(uint64_t acc_level) { module_pimpl->impl_prefetcher_broadcast_acc(acc_level); }
 
-  void impl_initialize_replacement() { module_pimpl->impl_initialize_replacement(); }
+  void impl_initialize_replacement()
+  {
+    if(enable_belady && NAME.find(belady_cache) != std::string::npos)
+       belady.initialize(NAME, NUM_SET);
+    else
+       module_pimpl->impl_initialize_replacement();
+  }
   uint32_t impl_find_victim(uint32_t triggering_cpu, uint64_t instr_id, uint32_t set, const BLOCK* current_set, uint64_t ip, uint64_t full_addr, uint32_t type)
   {
     return module_pimpl->impl_find_victim(triggering_cpu, instr_id, set, current_set, ip, full_addr, type);
@@ -384,7 +397,14 @@ public:
   {
     module_pimpl->impl_update_replacement_state(triggering_cpu, set, way, full_addr, ip, victim_addr, type, hit);
   }
-  void impl_replacement_final_stats() { module_pimpl->impl_replacement_final_stats(); }
+  void impl_replacement_final_stats()
+  {
+
+    if(enable_belady && NAME.find(belady_cache) != std::string::npos)
+       belady.finalize();
+    else
+       module_pimpl->impl_replacement_final_stats();
+  }
 
   class builder_conversion_tag
   {

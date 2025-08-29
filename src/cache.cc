@@ -23,6 +23,7 @@
 #include <iomanip>
 #include <iostream>
 #include <numeric>
+#include <vector>
 
 #include "champsim.h"
 #include "champsim_constants.h"
@@ -114,8 +115,21 @@ bool CACHE::handle_fill(const mshr_type& fill_mshr)
   auto [set_begin, set_end] = get_set_span(fill_mshr.address);
   auto way = std::find_if_not(set_begin, set_end, [](auto x) { return x.valid; });
   if (way == set_end)
-    way = std::next(set_begin, impl_find_victim(fill_mshr.cpu, fill_mshr.instr_id, get_set_index(fill_mshr.address), &*set_begin, fill_mshr.ip,
+  {
+    if(enable_belady && NAME.find(belady_cache) != std::string::npos)
+    {
+       std::vector<uint64_t> set_contents;
+       set_contents.resize(NUM_WAY);
+       for(auto it = set_begin; it != set_end; ++it)
+         set_contents.push_back(it->address);
+
+       way = std::next(set_begin, belady.find_victim(get_set_index(fill_mshr.address), set_contents, fill_mshr.address));
+    }
+    else
+       way = std::next(set_begin, impl_find_victim(fill_mshr.cpu, fill_mshr.instr_id, get_set_index(fill_mshr.address), &*set_begin, fill_mshr.ip,
                                                 fill_mshr.address, champsim::to_underlying(fill_mshr.type)));
+  }
+
   assert(set_begin <= way);
   assert(way <= set_end);
   const auto way_idx = static_cast<std::size_t>(std::distance(set_begin, way)); // cast protected by earlier assertion
@@ -224,8 +238,10 @@ bool CACHE::handle_fill(const mshr_type& fill_mshr)
 
       metadata_thru = impl_prefetcher_cache_fill(pkt_address, get_set_index(fill_mshr.address), way_idx, fill_mshr.type == access_type::PREFETCH,
                                                  evicting_address, metadata_thru);
-      impl_update_replacement_state(fill_mshr.cpu, get_set_index(fill_mshr.address), way_idx, fill_mshr.address, fill_mshr.ip, evicting_address,
-                                    champsim::to_underlying(fill_mshr.type), false);
+
+      if(!enable_belady || !(NAME.find(belady_cache) != std::string::npos))
+        impl_update_replacement_state(fill_mshr.cpu, get_set_index(fill_mshr.address), way_idx, fill_mshr.address, fill_mshr.ip, evicting_address,
+                                      champsim::to_underlying(fill_mshr.type), false);
 
       way->pf_metadata = metadata_thru;
     }
@@ -235,8 +251,10 @@ bool CACHE::handle_fill(const mshr_type& fill_mshr)
 
     metadata_thru =
         impl_prefetcher_cache_fill(pkt_address, get_set_index(fill_mshr.address), way_idx, fill_mshr.type == access_type::PREFETCH, 0, metadata_thru);
-    impl_update_replacement_state(fill_mshr.cpu, get_set_index(fill_mshr.address), way_idx, fill_mshr.address, fill_mshr.ip, 0,
-                                  champsim::to_underlying(fill_mshr.type), false);
+
+    if(!enable_belady || !(NAME.find(belady_cache) != std::string::npos))
+      impl_update_replacement_state(fill_mshr.cpu, get_set_index(fill_mshr.address), way_idx, fill_mshr.address, fill_mshr.ip, 0,
+                                    champsim::to_underlying(fill_mshr.type), false);
   }
 
   if (success) {
@@ -301,6 +319,10 @@ bool CACHE::try_hit(const tag_lookup_type& handle_pkt, bool no_stat_upd)
   const auto hit = (way != set_end);
   const auto useful_prefetch = (hit && way->prefetch && !handle_pkt.prefetch_from_this);
 
+  if(enable_belady && NAME.find(belady_cache) != std::string::npos)
+    belady.cache_access(get_set_index(handle_pkt.address), handle_pkt.address, handle_pkt.event_cycle);
+
+
   if constexpr (champsim::debug_print) {
     fmt::print("[{}] {} instr_id: {} address: {:#x} v_address: {:#x} data: {:#x} set: {} way: {} ({}) type: {} cycle: {}\n", NAME, __func__, handle_pkt.instr_id,
                handle_pkt.address, handle_pkt.v_address, handle_pkt.data, get_set_index(handle_pkt.address), std::distance(set_begin, way), hit ? "HIT" : "MISS",
@@ -349,8 +371,9 @@ bool CACHE::try_hit(const tag_lookup_type& handle_pkt, bool no_stat_upd)
 
       // update replacement policy
       const auto way_idx = static_cast<std::size_t>(std::distance(set_begin, way)); // cast protected by earlier assertion
-      impl_update_replacement_state(handle_pkt.cpu, get_set_index(handle_pkt.address), way_idx, way->address, handle_pkt.ip, 0,
-                                    champsim::to_underlying(handle_pkt.type), true);
+      if(!enable_belady || !(NAME.find(belady_cache) != std::string::npos))
+        impl_update_replacement_state(handle_pkt.cpu, get_set_index(handle_pkt.address), way_idx, way->address, handle_pkt.ip, 0,
+                                      champsim::to_underlying(handle_pkt.type), true);
 
       impl_prefetcher_prefetch_hit(block[get_set_index(handle_pkt.address) * NUM_WAY + way_idx].address << LOG2_BLOCK_SIZE, handle_pkt.ip,
                                    handle_pkt.pf_metadata);
