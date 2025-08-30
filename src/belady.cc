@@ -62,19 +62,27 @@ void Belady::BeladyReplacementPolicy::initialize(const std::string& NAME, const 
                 filter.push(f);
 
                 boost::archive::binary_iarchive archive(filter);
-                archive >> accesses;
+                archive >> sorted_accesses;
 
                 // Initialize the indices
                 for(uint32_t idx = 0; idx < NUM_SET; idx++) indices[idx] = 0;
+                assert(indices.size() == sorted_accesses.size());
         }
 
-        // Sanity Checks
         assert(state != State::unknown);
-        assert(indices.size() == accesses.size());
 }
 
-void Belady::BeladyReplacementPolicy::finalize() const
+void Belady::BeladyReplacementPolicy::finalize()
 {
+        for(auto kv: raw_accesses)
+        {
+                using access_type = std::pair<uint64_t, uint64_t>;
+                std::sort(kv.second.begin(), kv.second.end(), [](access_type lhs, access_type rhs)
+                                {return lhs.second < rhs.second;});
+                for(const auto& addr: kv.second)
+                        sorted_accesses[kv.first].push_back(addr.second);
+        }
+
         // Save the access trace to the trace file
         if(state == State::trace)
         {
@@ -86,13 +94,18 @@ void Belady::BeladyReplacementPolicy::finalize() const
                 filter.push(f);
                 boost::archive::binary_oarchive archive(filter);
 
-                archive << accesses;
+                archive << sorted_accesses;
         }
 }
 
 void Belady::BeladyReplacementPolicy::cache_access(const uint32_t set, const uint64_t full_addr, const uint64_t event_cycle)
 {
-        // TODO
+        if(state == State::trace)
+                raw_accesses[set].push_back({full_addr, event_cycle});
+        else
+        {
+                // TODO
+        }
 }
 
 
