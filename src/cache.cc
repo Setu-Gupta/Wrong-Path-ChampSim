@@ -123,7 +123,7 @@ bool CACHE::handle_fill(const mshr_type& fill_mshr)
        for(auto it = set_begin; it != set_end; ++it)
          set_contents.push_back(it->address);
 
-       way = std::next(set_begin, belady.find_victim(get_set_index(fill_mshr.address), set_contents, fill_mshr.address));
+       way = std::next(set_begin, belady.find_victim(get_set_index(fill_mshr.address), set_contents, fill_mshr.address, current_cycle));
     }
     else
        way = std::next(set_begin, impl_find_victim(fill_mshr.cpu, fill_mshr.instr_id, get_set_index(fill_mshr.address), &*set_begin, fill_mshr.ip,

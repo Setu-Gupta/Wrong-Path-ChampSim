@@ -1,4 +1,4 @@
-#include <boost/archive/binary_iarchive.hpp> 
+#include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <map>
+#include <utility>
 #include <vector>
 
 #include "belady.h"
@@ -62,11 +63,12 @@ void Belady::BeladyReplacementPolicy::initialize(const std::string& NAME, const 
                 filter.push(f);
 
                 boost::archive::binary_iarchive archive(filter);
-                archive >> sorted_accesses;
+                archive >> accesses;
+                assert(accesses.size() == NUM_SET);
 
                 // Initialize the indices
                 for(uint32_t idx = 0; idx < NUM_SET; idx++) indices[idx] = 0;
-                assert(indices.size() == sorted_accesses.size());
+                assert(indices.size() == accesses.size());
         }
 
         assert(state != State::unknown);
@@ -74,13 +76,12 @@ void Belady::BeladyReplacementPolicy::initialize(const std::string& NAME, const 
 
 void Belady::BeladyReplacementPolicy::finalize()
 {
-        for(auto kv: raw_accesses)
+        // Sort the accesses based on the event cycle
+        for(auto kv: accesses)
         {
-                using access_type = std::pair<uint64_t, uint64_t>;
-                std::sort(kv.second.begin(), kv.second.end(), [](access_type lhs, access_type rhs)
+                // using access_type = std::pair<uint64_t, uint64_t>;
+                std::sort(kv.second.begin(), kv.second.end(), [](const auto& lhs, const auto& rhs)
                                 {return lhs.second < rhs.second;});
-                for(const auto& addr: kv.second)
-                        sorted_accesses[kv.first].push_back(addr.second);
         }
 
         // Save the access trace to the trace file
@@ -94,23 +95,65 @@ void Belady::BeladyReplacementPolicy::finalize()
                 filter.push(f);
                 boost::archive::binary_oarchive archive(filter);
 
-                archive << sorted_accesses;
+                archive << accesses;
         }
 }
 
 void Belady::BeladyReplacementPolicy::cache_access(const uint32_t set, const uint64_t full_addr, const uint64_t event_cycle)
 {
         if(state == State::trace)
-                raw_accesses[set].push_back({full_addr, event_cycle});
+                accesses[set].push_back({full_addr, event_cycle});
         else
         {
-                // TODO
+                // Verify that the trace matches current execution
+                auto it = std::find(accesses[set].cbegin(), accesses[set].cend(), std::make_pair(full_addr, event_cycle));
+                assert(it != accesses[set].cend());
         }
 }
 
-
-uint32_t Belady::BeladyReplacementPolicy::find_victim(const uint32_t set, const std::vector<uint64_t>& set_contents, const uint64_t full_addr)
+uint32_t Belady::BeladyReplacementPolicy::find_victim(const uint32_t set, const std::vector<uint64_t>& set_contents, const uint64_t fill_addr, const uint64_t cycle)
 {
-        // TODO
-        return 0;
+        // Find the new start position to search based on the current cycle
+        const auto& trace = accesses[set];
+        auto start_pos = trace.cbegin();
+        std::advance(start_pos, indices[set]);
+        const auto& search_start_pos = std::find_if(start_pos, trace.cend(),
+                        [cycle](const auto& addr_cycle)
+                        {
+                                return addr_cycle.second == cycle;
+
+                        });
+
+        // Store the new start position
+        const uint64_t new_pos = std::distance(trace.cbegin(), search_start_pos);
+        assert(new_pos >= indices[set]);
+        indices[set] = new_pos;
+
+        // Find the first next use cycle for all the elements in the set and the fill address
+        std::map<uint64_t, uint64_t> next_use_cycle;    // Key is the address, value is the first use cycle
+        for(const auto& addr: set_contents)
+        {
+                next_use_cycle[addr] = std::find_if(search_start_pos, accesses[set].cend(),
+                                [addr](const auto& addr_cycle)
+                                {
+                                        return addr_cycle.first == addr;
+                                })->second;
+        }
+        next_use_cycle[fill_addr] = std::find_if(search_start_pos, accesses[set].cend(),
+                        [fill_addr](const auto& addr_cycle)
+                        {
+                                return addr_cycle.first == fill_addr;
+                        })->second;
+
+        // Identify the victim address
+        const auto& victim_address = std::max_element(next_use_cycle.cbegin(), next_use_cycle.cend(),
+                        [](const auto& lhs, const auto& rhs)
+                        {
+                                return lhs.second < rhs.second;
+                        })->first;
+
+        // Identify the victim way
+        auto way = std::find(set_contents.cbegin(), set_contents.cend(), victim_address);
+        assert((way != set_contents.cend()) || victim_address == fill_addr);
+        return std::distance(set_contents.cbegin(), way);
 }
