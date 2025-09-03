@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <map>
 #include <utility>
@@ -88,8 +89,16 @@ void Belady::BeladyReplacementPolicy::initialize(const std::string& NAME, const 
                 // Initialize the counts for verification
                 for(uint32_t idx = 0; idx < NUM_SET; idx++) counts[idx] = 0;
         }
-
-        if(state == State::unknown)
+        else if(state == State::trace)
+        {
+                if(std::filesystem::exists(trace_file))
+                {
+                        fmt::println(stderr, "{} trace already exist. Refusing to overwrite!",
+                                        trace_file);
+                        std::exit(-1);
+                }
+        }
+        else
         {
                 fmt::println(stderr, "{} cache is in unknown initial state",
                                 NAME);
