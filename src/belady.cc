@@ -5,9 +5,9 @@
 #include <boost/serialization/map.hpp>
 #include <boost/serialization/vector.hpp>
 #include <fmt/core.h>
+#include <fmt/ranges.h>
 
 #include <algorithm>
-#include <cassert>
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
@@ -40,12 +40,21 @@ void Belady::BeladyReplacementPolicy::initialize(const std::string& NAME, const 
                 cache_level = "L2C";
         else if(NAME.find("LLC") != std::string::npos)
                 cache_level = "LLC";
-        assert(cache_level != "");
+        else
+        {
+                fmt::println(stderr, "Couldn't indentify cache level from name: {}", NAME);
+                std::exit(-1);
+        }
 
         // Read the relevant environment variables
         const std::string trace_env_var = Belady::get_variable(cache_level + "_BELADY_TRACE");
         const std::string replay_env_var = Belady::get_variable(cache_level + "_BELADY_REPLAY");
-        assert((trace_env_var == "") != (replay_env_var == ""));    // Either tracing or replaying should not be enabled, not both
+        if((trace_env_var == "") == (replay_env_var == ""))     // Either tracing or replaying should not be enabled, not both
+        {
+                fmt::println(stderr, "Only one of tracing or replaying should be used. Got tracing: {}, replaying: {}",
+                                (trace_env_var != ""), (replay_env_var != ""));
+                std::exit(-1);
+        }
 
         // Populate the member variables
         trace_file = (trace_env_var == "") ? replay_env_var : trace_env_var;
@@ -57,30 +66,43 @@ void Belady::BeladyReplacementPolicy::initialize(const std::string& NAME, const 
         {
                 std::ifstream f(trace_file, std::ios::binary);
                 if(f.fail())
+                {
                         fmt::println(stderr, "Couldn't open the {} archive for replaying", trace_file);
+                }
                 boost::iostreams::filtering_istream filter;
                 filter.push(boost::iostreams::gzip_decompressor());
                 filter.push(f);
 
                 boost::archive::binary_iarchive archive(filter);
                 archive >> accesses;
-                assert(accesses.size() == NUM_SET);
+                if(accesses.size() != NUM_SET)
+                {
+                        fmt::println(stderr, "Number of cache sets: {} doesn't match sets in the trace {}",
+                                        NUM_SET, accesses.size());
+                        std::exit(-1);
+                }
 
                 // Initialize the indices
                 for(uint32_t idx = 0; idx < NUM_SET; idx++) indices[idx] = 0;
-                assert(indices.size() == accesses.size());
+
+                // Initialize the counts for verification
+                for(uint32_t idx = 0; idx < NUM_SET; idx++) counts[idx] = 0;
         }
 
-        assert(state != State::unknown);
+        if(state == State::unknown)
+        {
+                fmt::println(stderr, "{} cache is in unknown initial state",
+                                NAME);
+                std::exit(-1);
+        }
 }
 
 void Belady::BeladyReplacementPolicy::finalize()
 {
         // Sort the accesses based on the event cycle
-        for(auto kv: accesses)
+        for(auto& [set, list]: accesses)
         {
-                // using access_type = std::pair<uint64_t, uint64_t>;
-                std::sort(kv.second.begin(), kv.second.end(), [](const auto& lhs, const auto& rhs)
+                std::sort(list.begin(), list.end(), [](const auto& lhs, const auto& rhs)
                                 {return lhs.second < rhs.second;});
         }
 
@@ -89,13 +111,29 @@ void Belady::BeladyReplacementPolicy::finalize()
         {
                 std::ofstream f(trace_file, std::ios::binary);
                 if(f.fail())
+                {
                         fmt::println(stderr, "Couldn't create the {} archive", trace_file);
+                        std::exit(-1);
+                }
                 boost::iostreams::filtering_ostream filter;
                 filter.push(boost::iostreams::gzip_compressor());
                 filter.push(f);
                 boost::archive::binary_oarchive archive(filter);
 
                 archive << accesses;
+        }
+        else
+        {
+                // Make sure that the entire trace was exhausted
+                for(const auto& [set, list]: accesses)
+                {
+                        if(list.size() != counts[set])
+                        {
+                                fmt::println(stderr, "Trace {} of length {} was not exhausted completely for set {} which is {} accesses long",
+                                                trace_file, list.size(), set, counts[set]);
+                                std::exit(-1);
+                        }
+                }
         }
 }
 
@@ -107,7 +145,15 @@ void Belady::BeladyReplacementPolicy::cache_access(const uint32_t set, const uin
         {
                 // Verify that the trace matches current execution
                 auto it = std::find(accesses[set].cbegin(), accesses[set].cend(), std::make_pair(full_addr, event_cycle));
-                assert(it != accesses[set].cend());
+                if(it == accesses[set].cend())
+                {
+                        fmt::println(stderr, "Cache access in set {} for address {} at cycle {} not found in the trace {}",
+                                        set, full_addr, event_cycle, trace_file);
+                        std::exit(-1);
+                }
+
+                // Increment the access count
+                counts[set]++;
         }
 }
 
@@ -126,7 +172,12 @@ uint32_t Belady::BeladyReplacementPolicy::find_victim(const uint32_t set, const 
 
         // Store the new start position
         const uint64_t new_pos = std::distance(trace.cbegin(), search_start_pos);
-        assert(new_pos >= indices[set]);
+        if(new_pos < indices[set])
+        {
+                fmt::println(stderr, "Unexpected new search position: {} (old position: {}) for set: {}",
+                                new_pos, indices[set], set);
+                std::exit(-1);
+        }
         indices[set] = new_pos;
 
         // Find the first next use cycle for all the elements in the set and the fill address
@@ -154,6 +205,11 @@ uint32_t Belady::BeladyReplacementPolicy::find_victim(const uint32_t set, const 
 
         // Identify the victim way
         auto way = std::find(set_contents.cbegin(), set_contents.cend(), victim_address);
-        assert((way != set_contents.cend()) || victim_address == fill_addr);
+        if((way == set_contents.cend()) && (victim_address != fill_addr))
+        {
+                fmt::println(stderr, "Couldn't find victim: {}. Cache set contents: {}, fill address: {}",
+                                victim_address, set_contents, fill_addr);
+                std::exit(-1);
+        }
         return std::distance(set_contents.cbegin(), way);
 }

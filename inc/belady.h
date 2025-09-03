@@ -2,7 +2,6 @@
 #define BELADY_H
 
 #include <cstdint>
-#include <cstdlib>
 #include <map>
 #include <string>
 #include <utility>
@@ -30,6 +29,10 @@ namespace Belady
                 // The key is the set number and the value is the first unread index in the access
                 // list. This is only used for replaying
                 std::map<uint64_t, decltype(accesses)::size_type> indices;
+
+                // The key is the set number and the value is the count of cache accesses.
+                // This is only used for verification in the replay mode
+                std::map<uint64_t, uint64_t> counts;
 
                 public:
                         void initialize(const std::string& NAME, const uint32_t NUM_SET);
