@@ -118,6 +118,8 @@ void Belady::BeladyReplacementPolicy::finalize()
         // Save the access trace to the trace file
         if(state == State::trace)
         {
+                boost::iostreams::gzip_params params(9);
+
                 std::ofstream f(trace_file, std::ios::binary);
                 if(f.fail())
                 {
@@ -125,7 +127,7 @@ void Belady::BeladyReplacementPolicy::finalize()
                         std::exit(-1);
                 }
                 boost::iostreams::filtering_ostream filter;
-                filter.push(boost::iostreams::gzip_compressor());
+                filter.push(boost::iostreams::gzip_compressor(params));
                 filter.push(f);
                 boost::archive::binary_oarchive archive(filter);
 
