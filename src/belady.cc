@@ -153,7 +153,7 @@ void Belady::BeladyReplacementPolicy::cache_access(const uint32_t set, const uin
         else
         {
                 // Verify that the trace matches current execution
-                auto it = std::find(accesses[set].cbegin(), accesses[set].cend(), std::make_pair(full_addr, event_cycle));
+                const auto it = std::find(accesses[set].cbegin(), accesses[set].cend(), std::make_pair(full_addr, event_cycle));
                 if(it == accesses[set].cend())
                 {
                         fmt::println(stderr, "Cache access in set {} for address {} at cycle {} not found in the trace {}",
@@ -213,12 +213,13 @@ uint32_t Belady::BeladyReplacementPolicy::find_victim(const uint32_t set, const 
                         })->first;
 
         // Identify the victim way
-        auto way = std::find(set_contents.cbegin(), set_contents.cend(), victim_address);
+        const auto way = std::find(set_contents.cbegin(), set_contents.cend(), victim_address);
         if((way == set_contents.cend()) && (victim_address != fill_addr))
         {
                 fmt::println(stderr, "Couldn't find victim: {}. Cache set contents: {}, fill address: {}",
                                 victim_address, set_contents, fill_addr);
                 std::exit(-1);
         }
+
         return std::distance(set_contents.cbegin(), way);
 }

@@ -119,7 +119,7 @@ bool CACHE::handle_fill(const mshr_type& fill_mshr)
     if(enable_belady && NAME.find(belady_cache) != std::string::npos)
     {
        std::vector<uint64_t> set_contents;
-       set_contents.resize(NUM_WAY);
+       set_contents.reserve(NUM_WAY);
        for(auto it = set_begin; it != set_end; ++it)
          set_contents.push_back(it->address);
 
