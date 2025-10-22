@@ -298,7 +298,7 @@ bool CACHE::try_hit(const tag_lookup_type& handle_pkt, bool no_stat_upd)
   auto [set_begin, set_end] = get_set_span(handle_pkt.address);
   auto way = std::find_if(set_begin, set_end,
                           [match = handle_pkt.address >> OFFSET_BITS, shamt = OFFSET_BITS](const auto& entry) { return (entry.address >> shamt) == match; });
-  const auto hit = (way != set_end);
+  const auto hit = (way != set_end) | (NAME.find("ITLB") != std::string::npos);  // Treat all accesses as hits in the iTLB
   const auto useful_prefetch = (hit && way->prefetch && !handle_pkt.prefetch_from_this);
 
   if constexpr (champsim::debug_print) {
@@ -350,11 +350,14 @@ bool CACHE::try_hit(const tag_lookup_type& handle_pkt, bool no_stat_upd)
       // update replacement policy
       const auto way_idx = static_cast<std::size_t>(std::distance(set_begin, way)); // cast protected by earlier assertion
 
-      // Only update the replacement state for demands and for prefetches which have the replacement bit set
-      if ((handle_pkt.type != access_type::PREFETCH) || (handle_pkt.pf_metadata & UP_RPL_EN))
+      // Only update the replacement state for demands and for prefetches which have the replacement bit set. The default metadata for prefetches is 0x0
+      if ((handle_pkt.type != access_type::PREFETCH) || (handle_pkt.pf_metadata & UP_RPL_EN) || (handle_pkt.pf_metadata == 0x0))
       {
-              impl_update_replacement_state(handle_pkt.cpu, get_set_index(handle_pkt.address), way_idx, way->address, handle_pkt.ip, 0,
-                                            champsim::to_underlying(handle_pkt.type), true);
+              if(NAME.find("ITLB") == std::string::npos)
+              {
+                impl_update_replacement_state(handle_pkt.cpu, get_set_index(handle_pkt.address), way_idx, way->address, handle_pkt.ip, 0,
+                                              champsim::to_underlying(handle_pkt.type), true);
+              }
 
               if(handle_pkt.type != access_type::PREFETCH)      // Demand request
                       ++sim_stats.dmd_promote;
@@ -364,9 +367,11 @@ bool CACHE::try_hit(const tag_lookup_type& handle_pkt, bool no_stat_upd)
 
       if(handle_pkt.type == access_type::PREFETCH && handle_pkt.pf_metadata != UP_RPL_EN)
               ++sim_stats.pf_redundant;
-
-      impl_prefetcher_prefetch_hit(block[get_set_index(handle_pkt.address) * NUM_WAY + way_idx].address << LOG2_BLOCK_SIZE, handle_pkt.ip,
-                                   handle_pkt.pf_metadata);
+      if(NAME.find("ITLB") == std::string::npos)
+      {
+        impl_prefetcher_prefetch_hit(block[get_set_index(handle_pkt.address) * NUM_WAY + way_idx].address << LOG2_BLOCK_SIZE, handle_pkt.ip,
+                                     handle_pkt.pf_metadata);
+      }
 
       response_type response{handle_pkt.address, handle_pkt.v_address, way->data, metadata_thru, handle_pkt.instr_depend_on_me};
       for (auto ret : handle_pkt.to_return)
