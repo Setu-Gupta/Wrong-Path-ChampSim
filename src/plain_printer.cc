@@ -183,6 +183,7 @@ void champsim::plain_printer::print(CACHE::stats_type stats)
     fmt::print(stream, "{} AVERAGE DATA MISS LATENCY: {:.4g} cycles\n", stats.name, stats.avg_data_miss_latency);
     fmt::print(stream, "{} AVERAGE WP DATA MISS LATENCY: {:.4g} cycles\n", stats.name, stats.avg_wp_data_miss_latency);
     fmt::print(stream, "{} AVERAGE CP DATA MISS LATENCY: {:.4g} cycles\n", stats.name, stats.avg_cp_data_miss_latency);
+    fmt::print(stream, "{} Efficiency: {}\n", stats.name, stats.net_efficiency);
     fmt::print(stream, "{} [Replacement Prefetch]\n", stats.name);
     fmt::print(stream, "        Demand Promote: {:15}\n", stats.dmd_promote);
     fmt::print(stream, "        Prefetch Issued        Without RPL:                             {:15} With RPL:                   {:15}\n", stats.pf_issued_pf, stats.pf_issued_rpl);

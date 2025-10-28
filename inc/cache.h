@@ -114,6 +114,10 @@ struct cache_stats {
   uint64_t total_wp_data_miss_latency = 0;
   double avg_cp_data_miss_latency = 0;
   uint64_t total_cp_data_miss_latency = 0;  
+
+  // Efficiency Stats
+  float net_efficiency = 0.0f;
+  uint64_t efficiency_count = 0;
 };
 
 class CACHE : public champsim::operable
@@ -223,6 +227,9 @@ public:
     uint64_t data = 0;
 
     uint32_t pf_metadata = 0;
+
+    uint64_t cycle_inserted = 0;        // The cycle at which this block was inserted
+    uint64_t cycle_accessed = 0;        // The last cycle at which this block was touched
 
     BLOCK() = default;
     explicit BLOCK(mshr_type mshr);

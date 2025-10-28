@@ -220,7 +220,18 @@ bool CACHE::handle_fill(const mshr_type& fill_mshr)
       }
       last_entry_clk = current_cycle;
 
+      // Update the efficiency
+      if(way->valid)
+      {
+              float active_time = way->cycle_accessed - way->cycle_inserted;
+              float total_time = cycle - way->cycle_inserted;
+              float efficiency = active_time/total_time;
+              sim_stats.net_efficiency = ((sim_stats.net_efficiency * sim_stats.efficiency_count) + efficiency) / (sim_stats.efficiency_count + 1);
+              sim_stats.efficiency_count++;
+      }
       *way = BLOCK{fill_mshr};
+      way->cycle_inserted = cycle;      // Store the insertion cycle
+      way->cycle_accessed = cycle;
 
       metadata_thru = impl_prefetcher_cache_fill(pkt_address, get_set_index(fill_mshr.address), way_idx, fill_mshr.type == access_type::PREFETCH,
                                                  evicting_address, metadata_thru);
@@ -315,6 +326,8 @@ bool CACHE::try_hit(const tag_lookup_type& handle_pkt, bool no_stat_upd)
   }
 
   if (hit) {
+    way->cycle_accessed = cycle;        // Update the last touched cycle
+
     if (way->wrong_path && !handle_pkt.wrong_path) {
       if (!way->wrong_path_useful) {
         ++sim_stats.wp_useful;
@@ -1092,6 +1105,9 @@ void CACHE::end_phase(unsigned finished_cpu)
   roi_stats.avg_wp_data_miss_latency = std::ceil(roi_stats.total_wp_data_miss_latency) / std::ceil(roi_stats.wp_data_miss);
   roi_stats.total_cp_data_miss_latency = sim_stats.total_cp_data_miss_latency;
   roi_stats.avg_cp_data_miss_latency = std::ceil(roi_stats.total_cp_data_miss_latency) / std::ceil(roi_stats.data_miss-roi_stats.wp_data_miss);
+
+  roi_stats.efficiency_count = sim_stats.efficiency_count;
+  roi_stats.net_efficiency = sim_stats.net_efficiency;
 
   if (polluation.size()) {
     roi_stats.avg_pollution = (float_t)std::accumulate(polluation.begin(), polluation.end(), 0) / polluation.size();
