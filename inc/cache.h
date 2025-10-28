@@ -27,6 +27,7 @@
 #include <array>
 #include <bitset>
 #include <deque>
+#include <map>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -114,6 +115,9 @@ struct cache_stats {
   uint64_t total_wp_data_miss_latency = 0;
   double avg_cp_data_miss_latency = 0;
   uint64_t total_cp_data_miss_latency = 0;  
+
+  // Cache access histogram
+  std::map<uint64_t, uint64_t> histogram;
 };
 
 class CACHE : public champsim::operable
@@ -223,6 +227,7 @@ public:
     uint64_t data = 0;
 
     uint32_t pf_metadata = 0;
+    uint64_t access_count = 0;  // This counter is incremented at every cache access to this block
 
     BLOCK() = default;
     explicit BLOCK(mshr_type mshr);

@@ -220,7 +220,18 @@ bool CACHE::handle_fill(const mshr_type& fill_mshr)
       }
       last_entry_clk = current_cycle;
 
+
+      // Update the histogram
+      if(way->valid)
+      {
+          auto hist_it = sim_stats.histogram.find(way->access_count);
+          if(hist_it == sim_stats.histogram.end())
+            sim_stats.histogram[way->access_count] = 1;
+          else
+            hist_it->second++;
+      }
       *way = BLOCK{fill_mshr};
+      way->access_count = 1;     // Set the count to 1 since this is the very first access
 
       metadata_thru = impl_prefetcher_cache_fill(pkt_address, get_set_index(fill_mshr.address), way_idx, fill_mshr.type == access_type::PREFETCH,
                                                  evicting_address, metadata_thru);
@@ -315,6 +326,7 @@ bool CACHE::try_hit(const tag_lookup_type& handle_pkt, bool no_stat_upd)
   }
 
   if (hit) {
+    way->access_count++;      // Increment access count on hits
     if (way->wrong_path && !handle_pkt.wrong_path) {
       if (!way->wrong_path_useful) {
         ++sim_stats.wp_useful;
@@ -1046,6 +1058,8 @@ void CACHE::end_phase(unsigned finished_cpu)
   roi_stats.dmd_promote = sim_stats.dmd_promote;
   roi_stats.pf_issued_downstream = sim_stats.pf_issued_downstream;
   roi_stats.pf_dropped = sim_stats.pf_dropped;
+
+  roi_stats.histogram = sim_stats.histogram;
 
   roi_stats.wp_miss = sim_stats.wp_miss;
   roi_stats.cp_miss = sim_stats.cp_miss;
