@@ -299,7 +299,7 @@ bool CACHE::try_hit(const tag_lookup_type& handle_pkt, bool no_stat_upd)
   auto way = std::find_if(set_begin, set_end,
                           [match = handle_pkt.address >> OFFSET_BITS, shamt = OFFSET_BITS](const auto& entry) { return (entry.address >> shamt) == match; });
 
-  const auto hit = (way != set_end) | (NAME.find("L1I") != std::string::npos);  // Treat all accesses as hits in the L1I
+  const auto hit = (way != set_end) | (NAME.find("L1I") != std::string::npos) | (NAME.find("ITLB") != std::string::npos);  // Treat all accesses as hits in the L1I and iTLB
   const auto useful_prefetch = (hit && way->prefetch && !handle_pkt.prefetch_from_this);
 
   if constexpr (champsim::debug_print) {
@@ -354,7 +354,7 @@ bool CACHE::try_hit(const tag_lookup_type& handle_pkt, bool no_stat_upd)
       // Only update the replacement state for demands and for prefetches which have the replacement bit set. The default metadata for prefetches is 0x0
       if ((handle_pkt.type != access_type::PREFETCH) || (handle_pkt.pf_metadata & UP_RPL_EN) || (handle_pkt.pf_metadata == 0x0))
       {
-              if(NAME.find("L1I") == std::string::npos)
+              if(NAME.find("L1I") == std::string::npos && NAME.find("ITLB") == std::string::npos)
               {
                 impl_update_replacement_state(handle_pkt.cpu, get_set_index(handle_pkt.address), way_idx, way->address, handle_pkt.ip, 0,
                                               champsim::to_underlying(handle_pkt.type), true);
@@ -369,7 +369,7 @@ bool CACHE::try_hit(const tag_lookup_type& handle_pkt, bool no_stat_upd)
       if(handle_pkt.type == access_type::PREFETCH && handle_pkt.pf_metadata != UP_RPL_EN)
               ++sim_stats.pf_redundant;
 
-      if(NAME.find("L1I") == std::string::npos)
+      if(NAME.find("L1I") == std::string::npos && NAME.find("ITLB") == std::string::npos)
       {
         impl_prefetcher_prefetch_hit(block[get_set_index(handle_pkt.address) * NUM_WAY + way_idx].address << LOG2_BLOCK_SIZE, handle_pkt.ip,
                                      handle_pkt.pf_metadata);
